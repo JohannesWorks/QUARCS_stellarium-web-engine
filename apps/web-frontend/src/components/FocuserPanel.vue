@@ -1,6 +1,6 @@
 <template>
   <transition name="panel">
-  <div class="chart-panel" :style="{ bottom: bottom + 'px', left: left + 'px', right: right + 'px', height: height + 'px' }">
+    <div class="chart-panel" :style="{ bottom: bottom + 'px', left: ComponentPadding + 'px', right: ComponentPadding + 'px', height: height + 'px' }">
     <ImageChart ref="imagechart" class="image-chart"/>
     <FocusChart ref="focuschart" class="focus-chart"/>
 
@@ -113,8 +113,7 @@ export default {
     return {
       // width: 330, // 初始宽度
       bottom: 10,
-      left: 170,
-      right: 170,
+      ComponentPadding: 0,
       height: 90,
 
       MoveSteps: 100,
@@ -135,6 +134,13 @@ export default {
     FocusChart,
     ImageChart
   },
+  mounted() {
+    this.updatePosition(); // 初始化位置
+    window.addEventListener('resize', this.updatePosition);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.updatePosition);
+  },
   created() {
     // this.$bus.$on('AutoHistogramNum', this.setAutoHistogramNum);
     this.$bus.$on('FocusChangeSpeedSuccess', this.ShowSpeedNum);
@@ -146,16 +152,29 @@ export default {
     this.$bus.$on('AutoFocusOver', this.AutoFocusOver);
   },
   methods: {
+    updatePosition() {
+      const screenWidth = window.innerWidth;
+      const halfWidth = screenWidth / 2 - 250;
+      this.ComponentPadding = Math.max(halfWidth, 170);
+      // console.log('Updated Padding:', this.ComponentPadding);
+
+      // 计算宽度
+      const newWidth = screenWidth - (this.ComponentPadding * 2);
+      // console.log('Update Focus Chart width:', newWidth);
+      this.$bus.$emit('updateFocusChartWidth', newWidth);
+    },
     AutoFocus() {
       if(this.inAutoFocus)
       {
         this.inAutoFocus = false;
         console.log('QHYCCD | StopAutoFocus');
+        this.$bus.$emit('SendConsoleLogMsg', 'StopAutoFocus', 'info');
         this.$bus.$emit('AppSendMessage', 'Vue_Command', 'StopAutoFocus');
       }
       else
       {
         console.log('QHYCCD | StartAutoFocus');
+        this.$bus.$emit('SendConsoleLogMsg', 'StartAutoFocus', 'info');
         this.$bus.$emit('AppSendMessage', 'Vue_Command', 'ClearDataPoints');
         this.$bus.$emit('ClearAllData');
 
@@ -167,6 +186,7 @@ export default {
 
     AutoFocusOver() {
       console.log('QHYCCD | AutoFocusOver');
+      this.$bus.$emit('SendConsoleLogMsg', 'AutoFocusOver', 'info');
       this.inAutoFocus = false;
     },
     
@@ -178,6 +198,7 @@ export default {
       else if(this.MoveSteps === 10000) this.MoveSteps = 100;
 
       console.log('QHYCCD | StepsChange: ', this.MoveSteps);
+      // this.$bus.$emit('SendConsoleLogMsg', 'StepsChange:' + this.MoveSteps, 'info');
     },
 
     SpeedChange() {
@@ -186,18 +207,21 @@ export default {
       else if(this.MoveSpeed === 5) this.MoveSpeed = 1;
 
       console.log('QHYCCD | SpeedChange: ', this.MoveSpeed);
+      this.$bus.$emit('SendConsoleLogMsg', 'SpeedChange:' + this.MoveSpeed, 'info');
       this.$bus.$emit('AppSendMessage', 'Vue_Command', 'focusSpeed:'+ this.MoveSpeed);
     },
 
     FocusLeftMove() {
       this.isBtnMoveDisabled = true;
-      console.log('QHYCCD | FocusLeftMove: ');
+      this.$bus.$emit('FocusInProgress', true);
+      this.$bus.$emit('SendConsoleLogMsg', 'Focus Left Move:' + this.MoveSteps, 'info');
       this.$bus.$emit('AppSendMessage', 'Vue_Command', 'focusMove:'+ "Left" + ":" + this.MoveSteps);
     },
 
     FocusRightMove() {
       this.isBtnMoveDisabled = true;
-      console.log('QHYCCD | FocusRightMove: ');
+      this.$bus.$emit('FocusInProgress', true);
+      this.$bus.$emit('SendConsoleLogMsg', 'Focus Right Move:' + this.MoveSteps, 'info');
       this.$bus.$emit('AppSendMessage', 'Vue_Command', 'focusMove:'+ "Right" + ":" + this.MoveSteps);
     },
 
@@ -216,11 +240,14 @@ export default {
 
     FocusGoto() {
       this.$bus.$emit('AppSendMessage', 'Vue_Command', 'focusMove:'+ "Target" + ":" + this.TargetPosition);
+      this.$bus.$emit('SendConsoleLogMsg', 'Focus Move to:' + this.TargetPosition, 'info');
     },
 
     MoveDone() {
       this.isBtnMoveDisabled = false;
       console.log('QHYCCD | FocusMoveDone');
+      this.$bus.$emit('FocusInProgress', false);
+      this.$bus.$emit('SendConsoleLogMsg', 'FocusMoveDone', 'info');
     },
 
     UpdateFWHM(FWHM) {
@@ -228,9 +255,6 @@ export default {
     },
 
     loadAndDisplayImage(file) {
-      // const imagePath = 'http://192.168.2.31:8080/img/'+file; //process.env.VUE_APP_IMAGE_FILE
-      // const imagePath = process.env.VUE_APP_IMAGE_FILE + file;
-      // const imagePath = this.ImageFileUrl + file;
       const imagePath = 'img/' + file;
 
       const canvas = document.getElementById('Focus-Canvas');

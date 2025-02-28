@@ -77,6 +77,7 @@ export default {
       // circumference: 339.292,
       radius: 30, // 圆的半径
       strokeWidth: 7, // 圆环的线宽
+      CaptureExpTime: 1,
       animationDuration: 1, // 动画时长为1000毫秒（1秒）
       animationStartTime: 0, // 动画开始时间
       isClicked: false,
@@ -87,12 +88,15 @@ export default {
 
       isLongPress: false,
       longPressProgress: 0,
+
+      MainCameraConnect: false,
     };
   },
   created() {
-    this.$bus.$on('showCaptureImage', this.overProgress);
+    this.$bus.$on('ExposureCompleted', this.overProgress);
     this.$bus.$on('SetExpTime',this.SetDuration);
     this.$bus.$on('CameraInExposuring',this.setInProgress);
+    this.$bus.$on('MainCameraConnected', this.MainCameraConnected);
   },
   mounted() {
     this.$bus.$emit('AppSendMessage', 'Vue_Command', 'getCaptureStatus');
@@ -139,13 +143,19 @@ export default {
       const elapsed = Date.now() - this.mousePressTimestamp;
       if (elapsed < this.longPressThreshold) {
         // 处理点击逻辑
-        this.animateProgress();
+        if(this.MainCameraConnect) {
+          this.animateProgress();
+        } else {
+          this.$bus.$emit('showMsgBox', 'Please connect the camera first.', 'error');
+        }
       }
     },
 
     animateProgress() {
       if (this.isClicked) return; // 如果已点击，则退出方法
+      this.animationDuration = this.CaptureExpTime;
       this.$bus.$emit('AppSendMessage', 'Vue_Command', 'takeExposure:'+this.animationDuration);
+      this.$bus.$emit('SendConsoleLogMsg', 'Take Exposure:'+this.animationDuration, 'info');
       this.isClicked = true;
       const startTime = performance.now();
       const animate = (currentTime) => {
@@ -180,7 +190,7 @@ export default {
     },
 
     SetDuration(time) {
-      this.animationDuration = time;
+      this.CaptureExpTime = time;
     },
 
     startLongPressAnimation() {
@@ -196,6 +206,7 @@ export default {
           this.longPressProgress = 1;
           cancelAnimationFrame(this.longPressAnimationRequest);
           this.$bus.$emit('AppSendMessage', 'Vue_Command', 'abortExposure');
+          this.$bus.$emit('SendConsoleLogMsg', 'Abort Exposure', 'info');
           // 延时2秒后重置进度
           setTimeout(() => {
             this.resetlongPressProgress();
@@ -214,6 +225,15 @@ export default {
     setInProgress() {
       this.progress = 0.99;
       this.isClicked = true;
+    },
+
+    MainCameraConnected(num) {
+      if(num === 0){
+        this.MainCameraConnect = false;
+      } else {
+        this.MainCameraConnect = true;
+      }
+      console.log('MainCamera is Connected: ', num);
     },
 
   },

@@ -13,16 +13,15 @@
       <img class="tbtitle hidden-xs-only" id="stellarium-web-toolbar-logo" src="@/assets/images/logo.svg" width="33" height="33"  style="pointer-events: none;" alt="Stellarium Web Logo"/>
       <span class="tbtitle hidden-xs-only">Q U A R C S</span>
       <v-spacer></v-spacer>
-      <target-search v-show="isTargetSearchShow"></target-search>
+      <target-search v-show="isTargetSearchShow" style="width: 20%;"></target-search>
       <v-spacer></v-spacer>
       <div>
         <div v-if="$store.state.showFPS" class="subheader text-subtitle-2 pr-2" style="user-select: none;">FPS {{ $store.state.stel ? $store.state.stel.fps.toFixed(1) : '?' }}</div>
         <div class="subheader text-subtitle-2" style="user-select: none;">FOV {{ fov }}</div>
       </div>
       <!-- <v-btn class="transparent" v-if="!$store.state.showSidePanel" to="/p">{{ $t('Observe') }}<v-icon>mdi-chevron-down</v-icon></v-btn> -->
-      <v-menu v-if="$store.state.showTimeButtons" :close-on-content-click="false" transition="v-slide-y-transition" offset-y top left>
+      <!-- <v-menu v-if="$store.state.showTimeButtons" :close-on-content-click="false" transition="v-slide-y-transition" offset-y top left>
         <template v-slot:activator="{ on }">
-          <!-- <v-btn large class="tmenubt" color="secondary" v-on="on"> -->
           <button class="TimerPickBtn" v-on="on">
             <v-icon class="hidden-sm-and-up">mdi-clock-outline</v-icon>
             <span class="hidden-xs-only">
@@ -32,14 +31,22 @@
           </button>
         </template>
         <date-time-picker v-model="pickerDate" :location="$store.state.currentLocation"></date-time-picker>
-      </v-menu>
+      </v-menu> -->
 
-      <span v-if="isConnect">
+      <button class="TimerPickBtn" @click="toggleDateTimePicker">
+        <v-icon class="hidden-sm-and-up">mdi-clock-outline</v-icon>
+        <span class="hidden-xs-only">
+          <div class="text-subtitle-2">{{ time }}</div>
+          <div class="text-subtitle-2">{{ date }}</div>
+        </span>
+      </button>
+
+      <span v-if="isConnect" @click="toggleRPIHotspotDialog">
         <div style="display: flex; justify-content: center; align-items: center;">
           <img src="@/assets/images/svg/ui/wifi.svg" height="30px" style="min-height: 30px; pointer-events: none;"></img>
         </div>
       </span>
-      <span v-else>
+      <span v-else @click="toggleRPIHotspotDialog">
         <div style="display: flex; justify-content: center; align-items: center;">
           <img src="@/assets/images/svg/ui/wifi_off.svg" height="30px" style="min-height: 30px; pointer-events: none;"></img>
         </div>
@@ -111,17 +118,17 @@
 
         <div style="position: absolute;" 
           :style="{ top: openStatusCard ? '5px' : '15px', left: openStatusCard ? '80px' : '15px', width: openStatusCard ? '20px' : '15px', height: openStatusCard ? '20px' : '15px'}">
-          <span v-if="FocusStatus === 0">
+          <span v-if="CurrentFocusStatus === 0">
             <div style="display: flex; justify-content: center; align-items: center;">
               <img src="@/assets/images/svg/ui/Focuser-white.svg" :style="{height: openStatusCard ? '20px' : '15px'}" style="pointer-events: none;"></img>
             </div>
           </span>
-          <span v-if="FocusStatus === 1">
+          <span v-if="CurrentFocusStatus === 1">
             <div style="display: flex; justify-content: center; align-items: center;">
               <img src="@/assets/images/svg/ui/Focuser-green.svg" :style="{height: openStatusCard ? '20px' : '15px'}" style="pointer-events: none;"></img>
             </div>
           </span>
-          <span v-if="FocusStatus === 2">
+          <span v-if="CurrentFocusStatus === 2">
             <div style="display: flex; justify-content: center; align-items: center;">
               <img src="@/assets/images/svg/ui/Focuser-red.svg" :style="{height: openStatusCard ? '20px' : '15px'}" style="pointer-events: none;"></img>
             </div>
@@ -143,7 +150,7 @@
 <script>
 
 import TargetSearch from '@/components/target-search'
-import DateTimePicker from '@/components/date-time-picker.vue'
+// import DateTimePicker from '@/components/date-time-picker.vue'
 import Moment from 'moment'
 
 export default {
@@ -155,8 +162,8 @@ export default {
       openStatusCard: false,
       MainCameraInProgress: false,
       MountInProgress: true,
-      CurrentGuiderStatus: 1,
-      FocusStatus: 0,
+      CurrentGuiderStatus: 0,
+      CurrentFocusStatus: 0,
 
       MainCameraConnect: false,
 
@@ -174,6 +181,8 @@ export default {
     this.$bus.$on('GuiderStop', this.GuiderStatusStop);
     this.$bus.$on('MainCameraConnected', this.MainCameraConnected);
     this.$bus.$on('MountConnected', this.MountConnected);
+    this.$bus.$on('FocuserConnected', this.FocuserConnected);
+    this.$bus.$on('FocusInProgress', this.FocusStatus);
   },
   computed: {
     fov: function () {
@@ -206,10 +215,10 @@ export default {
       }
     }
   },
-  mounted: function () {
-    this.GetConnectedDevices();
+  // mounted: function () {
+  //   this.GetConnectedDevices();
 
-  },
+  // },
   methods: {
     toggleNavigationDrawer: function () {
       this.$store.commit('toggleBool', 'showNavigationDrawer')
@@ -264,6 +273,15 @@ export default {
       this.openStatusCard = !this.openStatusCard;
     },
 
+    toggleDateTimePicker() {
+      this.$bus.$emit('toggleDateTimePicker');
+    },
+
+    toggleRPIHotspotDialog() {
+      this.$bus.$emit('toggleRPIHotspotDialog');
+      this.$bus.$emit('AppSendMessage', 'Vue_Command', 'getHotspotName');
+    },
+
     MainCameraStatus(status) {
       if(status === 'Exposuring') {
         this.MainCameraInProgress = true;
@@ -292,6 +310,14 @@ export default {
       }
     },
 
+    FocusStatus(status) {
+      if(status) {
+        this.CurrentFocusStatus = 2;
+      } else {
+        this.CurrentFocusStatus = 1;
+      }
+    },
+
     GuiderStatusStop() {
       this.CurrentGuiderStatus = 0;
     },
@@ -314,12 +340,19 @@ export default {
       console.log('Mount is Connected: ', num);
     },
 
-    GetConnectedDevices() {
-      this.$bus.$emit('GetConnectedDevices');
-    },
+    FocuserConnected(num) {
+      this.CurrentFocusStatus = num;
+    }
+
+    // GetConnectedDevices() {
+    //   this.$bus.$emit('GetConnectedDevices');
+    // },
 
   },
-  components: { TargetSearch, DateTimePicker }
+  components: { 
+    TargetSearch, 
+    // DateTimePicker 
+  }
 }
 </script>
 
@@ -362,12 +395,13 @@ export default {
 }
 
 .TimerPickBtn {
-    padding: 0.2rem 0.6rem;
-    color: white;
-    cursor: pointer;
+  padding: 0.2rem 0.6rem;
+  color: white;
+  cursor: pointer;
 
-    font-size: 14px;
-    text-align: center;
+  font-size: 14px;
+  text-align: center;
+  user-select: none;
 }
 
 .ScheduleBtn {

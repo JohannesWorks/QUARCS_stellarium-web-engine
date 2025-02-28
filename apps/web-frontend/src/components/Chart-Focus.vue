@@ -38,7 +38,7 @@ export default {
     };
   },
   mounted() {
-    this.initChart();
+
   },
   created() {
     this.$bus.$on('FocusPosition', this.changeRange_x);
@@ -47,11 +47,11 @@ export default {
     this.$bus.$on('fitQuadraticCurve_minPoint', this.fitQuadraticCurve_minPoint);
     this.$bus.$on('ClearfitQuadraticCurve', this.clearChartData2);
     this.$bus.$on('ClearAllData', this.ClearAllData);
+    this.$bus.$on('updateFocusChartWidth', this.initChart);
   },
   methods: {
-    initChart() {
-      const Width = window.innerWidth;
-      this.containerMaxWidth = Width - 435;
+    initChart(Width) {
+      this.containerMaxWidth = Width - 95;
       const chartDom = this.$refs.linechart;
       chartDom.style.width = this.containerMaxWidth + 'px';
       this.myChart = echarts.init(chartDom);
@@ -228,6 +228,7 @@ export default {
       const newDataPoint = [this.currentX, FWHM];
       this.addData_Point(newDataPoint);
       console.log("QHYCCD | UpdateFWHM:", newDataPoint);
+      this.$bus.$emit('SendConsoleLogMsg', 'UpdateFWHM:' + newDataPoint, 'info');
       this.renderChart(this.xAxis_min, this.xAxis_max);
     },
     fitQuadraticCurve(x, y) {
@@ -236,6 +237,7 @@ export default {
     },
     fitQuadraticCurve_minPoint(x, y) {
       console.log("QHYCCD | minPoint:", x, ',', y);
+      this.$bus.$emit('SendConsoleLogMsg', 'minPoint:' + x + ',' + y, 'info');
       this.chartData3 = [];
       const newDataPoint = [x, y];
       this.chartData3.push(newDataPoint);

@@ -26,7 +26,7 @@
         </span>
       </button>
 
-      <span class="custom-button ImageFileTip no-select" @click="ImageFileSwitch"> {{ ImageFile }} </span>
+      <span class="custom-button ImageFileTip no-select" @click="ImageFileSwitch"> {{ $t(ImageFile) }} </span>
 
       <button class="custom-button btn-ImageFileSwitch no-select" :class="{ 'btn-ImageFileSwitch-1': isCaptureFile, 'btn-ImageFileSwitch-2': !isCaptureFile }" @click="ImageFileSwitch"> 
         <!-- <div style="display: flex; justify-content: center; align-items: center;">
@@ -65,16 +65,21 @@
 
     <span :class="{ 'span-USB-Info-Normal': !isUSBWarning, 'span-USB-Info-Warning': isUSBWarning }"> 
       <!-- USB Flash Drive: {{ USB_Name }}, Free Space: {{ USB_Space }} -->
-      {{ USB_Info }}
+      {{ $t(USB_Info) }}
     </span>
 
     <div v-for="(item, index) in displayedItems" :key="index">
-      <ImageFolder :folderIndex="index" :imageDate="item.imageDate" :imageName="item.imageName" :folderSelect="item.isSelected" :DeleteBtnSelect="DeleteBtnSelect" class="image-folder no-select" :style="{ top: Position[index].top, left: Position[index].left }"></ImageFolder>
+      <!-- <ImageFolder :folderIndex="index" :imageDate="item.imageDate" :imageName="item.imageName" :folderSelect="item.isSelected" :DeleteBtnSelect="DeleteBtnSelect" class="image-folder no-select" :style="{ top: Position[index].top, left: Position[index].left }"></ImageFolder> -->
+      <ImageFolder :folderIndex="index" :imageDate="item.imageDate" :imageName="item.imageName" :folderSelect="item.isSelected" :DeleteBtnSelect="DeleteBtnSelect" :PositionTop="Position[index].top" :PositionLeft="Position[index].left" class="image-folder no-select"></ImageFolder>
     </div>
 
     <span v-show="isNoFolders" style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; color: rgba(255, 255, 255, 0.5); user-select: none;"> 
-      There are no image folders.
+      {{ $t('There are no image folders') }}
     </span>
+
+    <transition name="overlay">
+      <div v-if="isImageFolderOpen" class="overlay"></div>
+    </transition>
 
   </div>
   </transition>
@@ -133,6 +138,7 @@ export default {
       ScheduleImageFoldersString_LastTime: '', 
       USB_Info: '',
       isUSBWarning: true,
+      isImageFolderOpen: false,
     };
   },
   created() {
@@ -140,6 +146,7 @@ export default {
     this.$bus.$on('calculateTotalPage', this.calculateTotalPage);
     this.$bus.$on('ShowAllImageFolder', this.updateImageFolders);
     this.$bus.$on('USB_Name_Sapce', this.updateUSBdata);
+    this.$bus.$on('ImageFolderOpen', this.ImageFolderOpen);
   },
   methods: {
     nextPage() {
@@ -165,7 +172,7 @@ export default {
     },
 
     SelectFolderIndex(num) {
-      // console.log('Select Folder Index:', num);
+      console.log('Select Folder Index:', num);
       this.imageFolders[this.currentPage * this.itemsPerPage + num].isSelected = !this.imageFolders[this.currentPage * this.itemsPerPage + num].isSelected;
     },
 
@@ -214,6 +221,7 @@ export default {
       this.calculateTotalPage();
 
       console.log('Deleted folders:', deletedFolders);
+      this.$bus.$emit('SendConsoleLogMsg', 'Deleted folders:'+deletedFolders, 'info');
     },
     convertImageDataToString(imageDataArray) {
       let resultString = '{';
@@ -240,7 +248,8 @@ export default {
       const moveFolders = this.imageFolders.filter(folder => folder.isSelected); // 被删除的文件夹
       const resultString = this.convertImageDataToString(moveFolders)
       this.$bus.$emit('AppSendMessage', 'Vue_Command', 'MoveFileToUSB:'+this.FoldersName+resultString);
-      console.log('Deleted folders:', moveFolders)
+      console.log('move folders:', moveFolders)
+      this.$bus.$emit('SendConsoleLogMsg', 'Move folders:'+moveFolders, 'info');
     },
 
     updateImageFolders(CaptureImageFoldersString, ScheduleImageFoldersString) {
@@ -309,8 +318,8 @@ export default {
       }
 
       for(let i = 0; i < (ScheduleFolder.length -1); i++) {
-        const Data = ScheduleFolder[i].split('[');
-        ScheduleFolderList.push({imageDate: Data[0], imageName: '['+Data[1], isSelected: false });
+        const Data = ScheduleFolder[i].split('(');
+        ScheduleFolderList.push({imageDate: Data[0], imageName: '('+Data[1], isSelected: false });
       }
 
       return {
@@ -323,12 +332,12 @@ export default {
       if(Name === 'Null')
       {
         this.isUSBWarning = true;
-        this.USB_Info = 'No USB Drive Detected.';
+        this.USB_Info = 'No USB Drive Detected';
       }
       else if (Name === 'Multiple')
       {
         this.isUSBWarning = true;
-        this.USB_Info = 'Multiple USB drives detected, please remove excess USB drives.';
+        this.USB_Info = 'Multiple USB drives detected, please remove excess USB drives';
       }
       else {
         const USB_Name = Name;
@@ -348,6 +357,23 @@ export default {
         return (bytes / ONE_MB).toFixed(2) + ' MB';
       } else {
         return (bytes / 1024).toFixed(2) + ' KB';
+      }
+    },
+
+    ImageFolderOpen(value) {
+      console.log('ImageFolderOpen:'+value);
+      if(value === 'true') {
+        this.isImageFolderOpen = true;
+        if(this.isCaptureFile)
+        {
+          this.$bus.$emit('currentFolderType', 'CaptureImage');
+        }
+        else
+        {
+          this.$bus.$emit('currentFolderType', 'ScheduleImage');
+        }
+      } else {
+        this.isImageFolderOpen = false;
       }
     }
 
@@ -750,5 +776,42 @@ export default {
   user-select: none;
   white-space: pre;
 }
+
+.overlay {
+  position:absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9998;
+  backdrop-filter: blur(20px); 
+}
+
+@keyframes showOverlayAnimation {
+  from {
+    backdrop-filter: blur(0px);
+  }
+  to {
+    backdrop-filter: blur(20px); 
+  }
+}
+
+@keyframes hideOverlayAnimation {
+  from {
+    backdrop-filter: blur(20px); 
+  }
+  to {
+    backdrop-filter: blur(0px);
+  }
+}
+
+.overlay-enter-active {
+  animation: showOverlayAnimation 0.3s forwards;
+}
+
+.overlay-leave-active {
+  animation: hideOverlayAnimation 0.3s forwards;
+}
+
 </style>
 
